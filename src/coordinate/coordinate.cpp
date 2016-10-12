@@ -26,22 +26,28 @@ uint8_t GetCoord(Coordinate* coord)
   {
     char c=json[i];
 
-    if(parse_state==0 && c=='[')
-      parse_state = 100;
-    else if(parse_state==0 && c!='[')
+    Serial.print("c=");
+    Serial.print(c);
+    Serial.print(' ');
+    Serial.println(parse_state);
+
+    //Serial.println(c!='[');
+    //Serial.println(parse_state==0 && (c!='['));
+
+    /*if(parse_state==0 && c!='[')
       parse_state=0;
+    else if(parse_state==0 && c=='[')
+      parse_state = 100;
     else if(parse_state==100 && c==']')
     {
       //Пустой response
       Serial.println("empty request");
       return 0;
-    }
-    else if(parse_state=100 && c!=']')
-      parse_state=100;
+    }*/
     //Автомат
-    if(parse_state==100 && c == '\"')
+    if(parse_state==0 && c == '\"')
       parse_state = 1;
-    else if(parse_state==1 && c=='w')
+    else if(parse_state==1 && c=='x')
       parse_state = 2;
     else if(parse_state==2 && c=='\"')
       parse_state = 3;
@@ -94,11 +100,13 @@ uint8_t GetCoord(Coordinate* coord)
       Serial.print("y=");Serial.println(y_s);
       return true;
     }
+    /*else if(parse_state=100 && c!=']')
+      parse_state=100;*/
     else
     {
       //Ошибка парсинга
-      Serial.println("parse error");
-      return 0;
+      //Serial.println("parse error");
+      //return 0;
     }
   }
 }
