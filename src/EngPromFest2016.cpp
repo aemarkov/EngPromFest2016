@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "coordinate\coordinate.h"
 
+#include <Bridge.h>
+#include <HttpClient.h>
+
 #define TIME_PER_5_DEGREE 15
 #define TIME_PER_SM 30
 #define MIN_DIST 100
@@ -33,19 +36,47 @@ float getBearing(Coordinate cur, Coordinate old, Coordinate target);
 
 void setup()
 {
+  pinMode(13, OUTPUT);
+    digitalWrite(13, LOW);
+    Bridge.begin();
+    digitalWrite(13, HIGH);
+
+    Serial.begin(9600);
+    Serial.println("Hello!");
+
+    //while (!SerialUSB); // wait for a serial connection
+
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  /*Serial.begin(9600);
   pinMode(13,OUTPUT);
 
   //Определение первоначального угла
   updateCoord();
   move_for_dist(100);
   updateCoord();
-  last_update = millis();
+  last_update = millis();*/
 }
 
 void loop()
 {
+  // Initialize the client library
+  HttpClient client;
+
+  // Make a HTTP request:
+  client.get("http://www.arduino.cc/asciilogo.txt");
+
+  // if there are incoming bytes available
+  // from the server, read them and print them:
+  while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+  Serial.flush();
+
+  delay(5000);
+  return;
+
+
   float dist_to_target = getDist(coord, targetCoord);
   if(dist_to_target<MIN_DIST)
   {
