@@ -8,9 +8,10 @@
 
 #include <inttypes.h>
 #include <HttpClient.h>
+#include <consts.h>
 
 #define COORD_TYPE float
-#define REQUEST "http://192.168.99.5:9002/rtlscp/location/B0B448D4E382/get"
+#define REQUEST "http://192.168.173.1:9002/rtlscp/location/B0B448D5DE82/get"
 
 //Структура координат
 struct Coordinate

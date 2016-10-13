@@ -1,85 +1,108 @@
 #include <Arduino.h>
-#include "coordinate\coordinate.h"
-
 #include <Bridge.h>
 #include <HttpClient.h>
+#include <inttypes.h>
 
-#define TIME_PER_5_DEGREE 15
-#define TIME_PER_SM 30
-#define MIN_DIST 100
+#include "shieldbot\Shieldbot.h" //????
+#include "coordinate\coordinate.h"
+#include <consts.h>
+/*
+Все расстояния в сантиметрах. Перевод - в файле coordinate.h
+Все расстояния в целых градусах
+*/
+
+//Параметры движенния
+#define TIME_PER_1_DEGREE 11 //ms
+#define TIME_PER_SM 30       //ms
 
 #define MOTOR_MAX 127
 #define MOTOR_HALF 64
+#define MOTOR_TURN 20
 
-#define PI 3.1415926
 #define PI_2 1.5707963
 
 Coordinate oldCoord, coord;
 Coordinate targetCoord;
-long last_update;
 
-// повернуться на месте на угол angle
+Coordinate ourDirection;
+//long last_update;
+
+Shieldbot shieldbot;
+
+// повернуться на месте на угол angle (deg)
 void rotateToAngle(int angle);
 
-//Езда вперед с корректировкой
-void move(int8_t speed, float angle);
-
 //ЕЗда вперед на определенное расстояние
-void move_for_dist(int8_t dist);
+void move_sm(int16_t dist);
 
 //Полуить новые координаты
 void updateCoord();
 
-float getDist(Coordinate a, Coordinate b);
-float getVectorAngle(Coordinate a, Coordinate b);
-float getBearing(Coordinate cur, Coordinate old, Coordinate target);
+Coordinate vectorDifference(Coordinate a, Coordinate b);
+float distanceBetweenPoints(Coordinate a, Coordinate b);
+float vectorLength(Coordinate a);
+float angleBetweenVectors(Coordinate a, Coordinate b);
 
 void setup()
 {
   pinMode(13, OUTPUT);
-    digitalWrite(13, LOW);
-    Bridge.begin();
-    digitalWrite(13, HIGH);
+  digitalWrite(13, LOW);
+  Bridge.begin();
+  digitalWrite(13, HIGH);
 
-    Serial.begin(9600);
-    Serial.println("Hello!");
-
-    //while (!SerialUSB); // wait for a serial connection
-
-  // put your setup code here, to run once:
-  /*Serial.begin(9600);
-  pinMode(13,OUTPUT);
+  Serial.begin(9600);
+  Serial.println("Hello!");
 
   //Определение первоначального угла
   updateCoord();
-  move_for_dist(100);
+  move_sm(10);
   updateCoord();
-  last_update = millis();*/
+  //last_update = millis();
+
+  targetCoord.x =  0 ;
+  targetCoord.y =  0 ;
 }
 
 void loop()
 {
-  // Initialize the client library
-  HttpClient client;
 
-  // Make a HTTP request:
-  client.get("http://www.arduino.cc/asciilogo.txt");
+  /*Serial.println(45);
+  rotateToAngle(45);
+  delay(1000);
+  Serial.println(-45);
+  rotateToAngle(-45);
+  delay(1000);
+  Serial.println(135);
+  rotateToAngle(135);
+  delay(1000);
+  Serial.println(-135);
+  rotateToAngle(-135);
+  delay(4000);
+  return;*/
 
-  // if there are incoming bytes available
-  // from the server, read them and print them:
-  while (client.available()) {
-    char c = client.read();
-    Serial.print(c);
-  }
-  Serial.flush();
+  //Смещение с прошлого момоента
+  int16_t movement = distanceBetweenPoints(oldCoord, coord);
 
-  delay(5000);
-  return;
+  //Если сместились - обновляем текущий курс
+  if(movement>20)
+    ourDirection = vectorDifference(coord, oldCoord);
+
+  //Вычисляем расстояние и курс на цель
+  int16_t dist_to_target = distanceBetweenPoints(targetCoord, coord);
+
+  Coordinate targetDirection = vectorDifference(targetCoord, coord);
+  float angle_to_target = angleBetweenVectors(ourDirection,targetDirection);
 
 
-  float dist_to_target = getDist(coord, targetCoord);
+  Serial.print("x=");Serial.print(coord.x);Serial.print(" y=");Serial.print(coord.y);
+  //Serial.print(" angle="); Serial.print(our_angle);
+  Serial.print(" angle_to_target="); Serial.print(angle_to_target);
+  Serial.print(" dist_to_target=");  Serial.println(dist_to_target);
+
   if(dist_to_target<MIN_DIST)
   {
+    rotateToAngle(360);
+
     //Fin
     while(1)
     {
@@ -90,78 +113,56 @@ void loop()
     }
   }
 
-  float angle_to_target = getBearing(coord, oldCoord, targetCoord);
-  float abs_ang = abs(angle_to_target);
+  int16_t abs_ang = abs(angle_to_target);
 
-  Serial.print(angle_to_target);Serial.print(' ');
-  Serial.println(dist_to_target);
-
-  if(abs_ang>45)
+  if(abs_ang>10)
   {
     //Поворот на месте
     rotateToAngle(angle_to_target);
-  }
-  else if(abs_ang>10)
-  {
-    //Подруливание
-    move(MOTOR_HALF, angle_to_target);
+    ourDirection = targetDirection;
   }
   else
   {
     //Прямо
-    move(MOTOR_HALF, 0);
+    move_sm(10);
   }
 
-  if(millis()-last_update>1000)
-  {
-    updateCoord();
-    last_update = millis();
-  }
+
+  updateCoord();
+  delay(1000);
 }
 
 
 // повернуться на угол angle
+//+ - направо, - -налево
 void rotateToAngle(int angle)
 {
+  Serial.print("Rotate ");
+  Serial.println(angle);
   if(angle < 0) // поврот налево
   {
-    //shieldbot.drive(-leftDriveSpeed, rightDriveSpeed);
+    shieldbot.drive(-MOTOR_TURN, MOTOR_TURN);
   }
   else // поворот направо
   {
-    //shieldbot.drive(leftDriveSpeed, -rightDriveSpeed);
+    shieldbot.drive(MOTOR_TURN, -MOTOR_TURN);
   }
   // ждем время для поворота
-  delay(TIME_PER_5_DEGREE * (angle / 5));
+  delay(abs(angle) * TIME_PER_1_DEGREE);
   // отключаем двигатели
-  //shieldbot.drive(0, 0 );
+  shieldbot.drive(0, 0 );
 }
 
-//Езда вперед с корректировкой
-void move(int8_t speed, float angle)
-{
-  int8_t l_speed, r_speed;
-  if(speed>0)
-  {
-    //Forwrd
-    l_speed = speed + angle/PI_2*MOTOR_HALF;
-    r_speed = speed - angle/PI_2*MOTOR_HALF;
-  }
-  else
-  {
-    l_speed = speed - angle/PI_2*MOTOR_HALF;
-    r_speed = speed + angle/PI_2*MOTOR_HALF;
-  }
-
-  //shieldbot.drive(l_speed, r_speed);
-}
 
 //ЕЗда вперед на определенное расстояние
-void move_for_dist(int8_t dist)
+void move_sm(int16_t dist)
 {
-  //shieldbot.drive(MOTOR_MAX, MOTOR_MAX);
-  delay(dist * TIME_PER_SM);
-  //shieldbot.drive(0, 0);
+  Serial.print("move ");
+  Serial.println(dist);
+  shieldbot.drive(MOTOR_HALF, MOTOR_HALF);
+  delay(abs(dist) * TIME_PER_SM);
+  shieldbot.drive(0, 0);
+
 }
 
 //Полуить новые координаты
@@ -172,19 +173,37 @@ void updateCoord()
   GetCoord(&coord);
 }
 
-float getDist(Coordinate a, Coordinate b)
+
+
+
+
+
+
+//Расстояние между точками
+float distanceBetweenPoints(Coordinate a, Coordinate b)
 {
     return sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y));
 }
 
-float getVectorAngle(Coordinate a, Coordinate b)
+//Вычитание координат (векторов)
+Coordinate vectorDifference(Coordinate a, Coordinate b)
 {
-  return atan2(b.y-a.y, b.x-a.x);
+  Coordinate c;
+  c.x = a.x-b.x;
+  c.y = a.y-b.y;
+  return c;
 }
 
-float  getBearing(Coordinate cur, Coordinate old, Coordinate target)
+float vectorLength(Coordinate a)
 {
-  float my_angle = getVectorAngle(cur, old);
-  float angle_to_target = getVectorAngle(target, cur);
-  return my_angle - angle_to_target;
+  return sqrt(a.x*a.x+a.y*a.y);
+}
+
+float  angleBetweenVectors(Coordinate a, Coordinate b)
+{
+  /*float dist1 = vectorLength(a);
+  float dist2 = vectorLength(b);
+  return (a.x*b.x + a.y*b.y)/(dist1*dist2);*/
+  //return degrees(atan2(a.y-b.y, a.x-b.x));
+  return degrees(atan2(a.x*b.y-a.y*b.x,a.x*b.x+a.y*b.y));
 }

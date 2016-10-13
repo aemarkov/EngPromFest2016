@@ -1,6 +1,6 @@
 #include "coordinate.h"
 
-uint8_t parse_state = 0;
+
 
 //Извлекает координтату из json
 //return - есть ли координата
@@ -16,26 +16,18 @@ uint8_t parse_state = 0;
 uint8_t GetCoord(Coordinate* coord)
 {
   HttpClient client;
-  //client.get(REQUEST);
-  
+  client.get(REQUEST);
+
 
   String buff = "";
   //String y_s = "";
   float x=0, y=0;
-
+  uint8_t parse_state = 0;
 
   //Читаем ответ сервера по-символьно
   //Конечный авомат, чтобы вытащить "x", "y"
-  String json = "{\"response\":[{\"mac\":\"B0B448D4E382\",\"ts\":1476208702257,\"coord\":{\"geoloc\":{\"lat\":61.786820445942645,\"lon\":34.35401144212008,\"alt\":80.0},\"loc\":{\"x\":123,\"y\":456,\"z\":80.0}},\"motion\":{\"type\":[]},\"raw\":{\"type\":[\"UWB\"]}}]}";
-  //String json = "{\"response\":[]}";
-  //while (client.available()) {
-    //char c = client.read();
-  //Serial.println(json);
-
-  for(int i = 0; i<json.length(); i++)
-  {
-    char c=json[i];
-
+  while (client.available()) {
+    char c = client.read();
     /*Serial.print("c=");
     Serial.print(c);
     Serial.print(' ');
@@ -104,11 +96,18 @@ uint8_t GetCoord(Coordinate* coord)
     {
       //Конец
       y = buff.toFloat();
-      coord->x=x;
-      coord->y=y;
 
-      //Serial.print("x=");Serial.println(x_s);
-      //Serial.print("y=");Serial.println(y_s);
+      //Переводим в сантиметры
+      coord->x=(x-TARGET_X)*SM_PER_PARROT;
+      coord->y=(y-TARGET_Y)*SM_PER_PARROT;
+
+      //Serial.print(x);Serial.print(' ');Serial.println(y);
+
+
+      //Serial.print("xp=");Serial.print(x);
+      //Serial.print(" yp=");Serial.println(y);
+      //Serial.print("x=");Serial.print(coord->x);
+      //Serial.print(" y=");Serial.println(coord->y);
       return true;
     }
   }
